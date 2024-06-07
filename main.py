@@ -15,10 +15,29 @@ from googleapiclient.errors import HttpError
 # OpenAI API Functions
 #
 
+KEEP = "KEEP"
+DELETE = "DELETE"
+
 def classify_email(email_content):
     client = OpenAI(
         api_key=os.environ['OPENAI_API_KEY'],  # this is also the default, it can be omitted
     )
+    
+    system_message = {
+        "role": "system",
+        "content": (
+            "You are an email assistant. Your task is to classify emails as either 'keep' or 'delete'. "
+            "Only keep emails that are critically important, contain valuable information, or hold sentimental value with good memories. "
+            "If an email does not clearly meet these criteria, classify it as 'delete'. If unsure, lean towards delete."
+        )
+    }
+    
+    user_message = {
+        "role": "user", 
+        "content": (
+            f"Classify the following email and only return either '{KEEP}' or '{DELETE}':\n\n{email_content}"
+        )
+    }
     
     # References:
     # https://platform.openai.com/docs/api-reference/making-requests
@@ -26,11 +45,20 @@ def classify_email(email_content):
     response = client.chat.completions.create(
         model="gpt-3.5-turbo",
         messages=[
-            {"role": "system", "content": "You are an email assistant. Classify emails as either 'keep' or 'delete'."},
-            {"role": "user", "content": f"Classify the following email and only return either 'KEEP' or 'DELETE':\n\n{email_content}"}
+            system_message,
+            user_message
         ]
     )
-    return response.choices[0].message.content.strip()
+    response = response.choices[0].message.content.strip()
+    
+    # Verify at least one label is specified
+    assert KEEP in response or DELETE in response
+    # Sanity check to make sure AI doesn't return both options
+    assert not(KEEP in response and DELETE in response)
+
+    if KEEP in response:
+        return KEEP
+    return DELETE
 
 
 #
@@ -175,30 +203,65 @@ def apply_label(service, msg_id, label_id):
         return None
 
 
-# *** SAMPLE EMAIL SORTING CODE ***
-# # Ensure you have set the environment variable for your API key
-# # export OPENAI_API_KEY='your-api-key'
-# openai.api_key = os.environ['OPENAI_API_KEY']
+def process_raw_email_message(raw_email):
+    assert isinstance(raw_email["body"], str)
+    
+    print("\n===================================")
+    print(f"Subject: {raw_email['headers']['Subject']}")
+    print(f"Date: {raw_email['headers']['Date']}")
+    print(f"From: {raw_email['headers']['From']}")
+    print(f"Message length: {len(raw_email['body'])}")
+    
+    processed_email = {}
+    processed_email["Subject"] = raw_email['headers']['Subject']
+    processed_email["Date"] = raw_email['headers']['Date']
+    processed_email["From"] = raw_email['headers']['From']
+    processed_email["body"] = raw_email["body"]
+    return repr(processed_email)
 
-# def classify_email(email_content):
-#     response = openai.ChatCompletion.create(
-#         model="gpt-3.5-turbo",
-#         messages=[
-#             {"role": "system", "content": "You are an email assistant. Classify emails as either 'important' or 'delete'."},
-#             {"role": "user", "content": f"Classify the following email and only return either 'IMPORTANT' or 'DELETE':\n\n{email_content}"}
-#         ]
-#     )
-#     classification = response.choices[0].message['content'].strip()
-#     return classification
 
-# if __name__ == "__main__":
-#     # Example list of emails in plain text
-#     emails = [
-#         "Subject: Meeting Reminder\nHi, just a reminder about the meeting tomorrow at 10 AM.",
-#         "Subject: Sale Now On!\nDon't miss our big sale! Up to 50% off on selected items.",
-#         "Subject: Project Update\nPlease find attached the latest updates on the project."
-#     ]
+if __name__ == "__main__":
+    load_dotenv()
 
-#     for email in emails:
-#         result = classify_email(email)
-#         print(f"Email: {email}\nClassification: {result}\n")
+    service = get_api_service_obj()
+    
+    # Check for "keep" and "delete" labels. Create them if not present.
+    
+    KEEP_LABEL = "keep"
+    DELETE_LABEL = "delete"
+        
+    keep_label_id = None
+    delete_label_id = None
+    
+    labels = list_labels(service)
+    for label in labels:
+        if KEEP_LABEL == label["name"]:
+            keep_label_id = label["id"]
+        elif DELETE_LABEL == label["name"]:
+            delete_label_id = label["id"]
+
+    if not keep_label_id:
+        temp = create_label(service, KEEP_LABEL)
+        keep_label_id = temp["id"]
+    if not delete_label_id:
+        temp = create_label(service, DELETE_LABEL)
+        delete_label_id = temp["id"]
+
+    # Loop through the messages and classify    
+    messages = list_messages(service)
+    print(f"Currently sorting: {len(messages)} messages")
+    
+    for message in messages:
+        raw_message_data = get_full_message(service, message['id'])
+        
+        # TODO: check if email already labeled
+        # breakpoint()
+        
+        message_data = process_raw_email_message(raw_message_data)
+        response = classify_email(message_data)
+                
+        if KEEP in response:
+            apply_label(service, message["id"], keep_label_id)
+        elif DELETE in response:
+            apply_label(service, message["id"], delete_label_id)
+        
