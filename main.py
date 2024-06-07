@@ -1,6 +1,7 @@
 import os
 import os.path
 import base64
+import json
 
 from dotenv import load_dotenv
 from openai import OpenAI
@@ -244,7 +245,7 @@ def process_raw_email_message(raw_email):
     print(f"Subject: {processed_email['Subject']}")
     print(f"Date: {processed_email['Date']}")
     print(f"From: {processed_email['From']}")
-    print(f"Message length: {len(processed_email['body'])}")
+    print(f"Message length: {len(raw_email['body'])}")
     
     return repr(processed_email)
 
@@ -258,6 +259,29 @@ def get_email_labels(service, message_id):
         return []
 
 
+PAGE_TOKEN_FILENAME = "page_token.json"
+def load_page_token():
+    try:
+        with open(PAGE_TOKEN_FILENAME, 'r') as json_file:
+            data = json.load(json_file)
+        print(f"Data successfully loaded from {PAGE_TOKEN_FILENAME}")
+        assert "page_token" in data
+        return data["page_token"]
+    except Exception as e:
+        print(f"An error occurred: {e}")
+        return None
+
+
+def save_page_token(page_token):
+    try:
+        with open(PAGE_TOKEN_FILENAME, 'w') as json_file:
+            data = { "page_token" : page_token }
+            json.dump(data, json_file)
+        print(f"Data successfully saved to {PAGE_TOKEN_FILENAME}")
+    except Exception as e:
+        print(f"An error occurred: {e}")
+
+
 if __name__ == "__main__":
     load_dotenv()
 
@@ -265,8 +289,8 @@ if __name__ == "__main__":
     
     # Check for "keep" and "delete" labels. Create them if not present.
     
-    KEEP_LABEL = "keep"
-    DELETE_LABEL = "delete"
+    KEEP_LABEL = "_keep"
+    DELETE_LABEL = "_delete"
         
     keep_label_id = None
     delete_label_id = None
@@ -286,10 +310,15 @@ if __name__ == "__main__":
         delete_label_id = temp["id"]
 
     # Loop through the messages and classify
-    page_token = None
+    
+    page_token = load_page_token()
     emails_sorted = 0
     max_results = 100
-    while True: 
+    while True:
+        # Backup the current page_token to a json file
+        save_page_token(page_token)
+        
+        # Query for emails
         messages, page_token = list_messages(service, page_token, max_results)        
         emails_sorted += len(messages)
         
