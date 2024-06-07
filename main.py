@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 from openai import OpenAI
 
 
-def get_gpt_response(prompt):
+def classify_email(email_content):
     client = OpenAI(
         api_key=os.environ['OPENAI_API_KEY'],  # this is also the default, it can be omitted
     )
@@ -18,18 +18,12 @@ def get_gpt_response(prompt):
     response = client.chat.completions.create(
         model="gpt-3.5-turbo",
         messages=[
-            {"role": "system", "content": "You are a helpful assistant."},
-            {"role": "user", "content": prompt}
+            {"role": "system", "content": "You are an email assistant. Classify emails as either 'keep' or 'delete'."},
+            {"role": "user", "content": f"Classify the following email and only return either 'KEEP' or 'DELETE':\n\n{email_content}"}
         ]
     )
     return response.choices[0].message.content.strip()
 
-
-if __name__ == "__main__":
-    load_dotenv()
-    user_input = input("Enter your message: ")
-    response = get_gpt_response(user_input)
-    print("GPT-3 response:", response)
 
 
 # *** SAMPLE EMAIL SORTING CODE ***
@@ -41,8 +35,8 @@ if __name__ == "__main__":
 #     response = openai.ChatCompletion.create(
 #         model="gpt-3.5-turbo",
 #         messages=[
-#             {"role": "system", "content": "You are an email assistant. Classify emails as either 'not important/delete' or 'probably important/keep'."},
-#             {"role": "user", "content": f"Classify the following email: {email_content}"}
+#             {"role": "system", "content": "You are an email assistant. Classify emails as either 'important' or 'delete'."},
+#             {"role": "user", "content": f"Classify the following email and only return either 'IMPORTANT' or 'DELETE':\n\n{email_content}"}
 #         ]
 #     )
 #     classification = response.choices[0].message['content'].strip()

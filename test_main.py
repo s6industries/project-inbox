@@ -2,9 +2,23 @@ from dotenv import load_dotenv
 import main
 
 
-def test_main():
+def test_classify_email():
     load_dotenv()
-    prompt = "Say this is a test"
-    response = main.get_gpt_response(prompt)
-    print("GPT-3 response:", response)
-    assert "this is a test" in response.lower()
+    
+    # Test with an email that should be deleted
+    email = "This is a super NOT important email.."
+    response = main.classify_email(email)
+    print(f"{email=}\n{response=}\n")
+    assert "DELETE" in response
+    
+    # Test with an email that should be kept
+    email = "This is a super VERY important email.. definitely keep this one"
+    response = main.classify_email(email)
+    print(f"{email=}\n{response=}\n")
+    assert "KEEP" in response
+    
+    # Test with an ambiguous email
+    email = "This is an ambiguous email. It could possibly be deleted. It could also possibly be important."
+    response = main.classify_email(email)
+    print(f"{email=}\n{response=}\n")
+    assert "KEEP" in response
