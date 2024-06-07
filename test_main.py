@@ -48,7 +48,7 @@ def test_create_and_delete_label():
 
 def test_list_messages():
     service = email_sorter.get_api_service_obj()
-    messages = email_sorter.list_messages(service)
+    messages, _ = email_sorter.list_messages(service)
     assert messages
 
     test_message = {
@@ -72,7 +72,7 @@ def test_list_messages():
 
 def test_apply_label_to_message():
     service = email_sorter.get_api_service_obj()
-    messages = email_sorter.list_messages(service)
+    messages, _ = email_sorter.list_messages(service)
     assert messages
 
     # Create new random label
@@ -93,7 +93,7 @@ def test_apply_label_to_message():
 
 def test_get_email_labels():
     service = email_sorter.get_api_service_obj()
-    messages = email_sorter.list_messages(service)
+    messages, _ = email_sorter.list_messages(service)
     print(messages)
     email_id = messages[0]["id"]
     labels = email_sorter.get_email_labels(service, email_id)

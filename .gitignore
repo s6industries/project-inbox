@@ -4,6 +4,11 @@
 token.json
 credentials.json
 
+#
+# VS Code
+#
+
+*.code-workspace
 
 #
 # Python

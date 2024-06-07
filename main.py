@@ -26,9 +26,12 @@ def classify_email(email_content):
     system_message = {
         "role": "system",
         "content": (
-            "You are an email assistant. Your task is to classify emails as either 'keep' or 'delete'. "
-            "Only keep emails that are critically important, contain valuable information, or hold sentimental value with good memories. "
-            "If an email does not clearly meet these criteria, classify it as 'delete'. If unsure, lean towards delete."
+            "You are an email assistant. Your task is to classify emails as either 'KEEP' or 'DELETE'. "
+            "Only keep emails that are critically important, such as work-related communications, personal correspondence of high significance, "
+            "or emails containing valuable information like receipts or important updates. Also, keep emails with sentimental value and good memories. "
+            "Delete emails that are promotional, generic notifications, setup instructions, or other non-critical content. "
+            "If an email does not clearly meet the 'KEEP' criteria, classify it as 'DELETE'. If unsure, lean towards 'DELETE'. "
+            "Examples of emails to DELETE: 'Your Google Play purchase verification settings', 'finish setting up your Android device with Google', 'Next ACM Webcast: Introduction to Packet Capture'."
         )
     }
     
@@ -133,12 +136,13 @@ def delete_label(service, label_id):
         return False
 
 
-def list_messages(service):
+def list_messages(service, page_token=None):
     try:
         # Call the Gmail API to list messages
-        results = service.users().messages().list(userId='me', maxResults=10).execute()
+        results = service.users().messages().list(userId='me', maxResults=10, pageToken=page_token).execute()
         messages = results.get('messages', [])
-        return messages
+        next_page_token = results.get('nextPageToken')
+        return messages, next_page_token
     except Exception as error:
         print(f"An error occurred: {error}")
         return None
@@ -214,7 +218,9 @@ def process_raw_email_message(raw_email):
     processed_email["Subject"] = raw_email['headers']['Subject']
     processed_email["Date"] = raw_email['headers']['Date']
     processed_email["From"] = raw_email['headers']['From']
-    processed_email["body"] = raw_email["body"]
+    # Note: avoid this error code by truncating the message body
+    # Error code: 400 - {'error': {'message': "This model's maximum context length is 16385 tokens.
+    processed_email["body"] = raw_email["body"][:15000]
     return repr(processed_email)
 
 
@@ -254,22 +260,26 @@ if __name__ == "__main__":
         temp = create_label(service, DELETE_LABEL)
         delete_label_id = temp["id"]
 
-    # Loop through the messages and classify    
-    messages = list_messages(service)
-    print(f"Currently sorting: {len(messages)} messages")
-    
-    for message in messages:
-        # Check if email already labeled
-        label_ids = get_email_labels(service, message["id"])
-        if delete_label_id in label_ids or keep_label_id in label_ids:
-            continue
+    # Loop through the messages and classify
+    page_token = None
+    while True: 
+        messages, page_token = list_messages(service, page_token)
+        print(f"Currently sorting: {len(messages)} messages")
+        if len(messages) < 1:
+            break
         
-        raw_message_data = get_full_message(service, message['id'])
-        message_data = process_raw_email_message(raw_message_data)
-        response = classify_email(message_data)
-                
-        if KEEP in response:
-            apply_label(service, message["id"], keep_label_id)
-        elif DELETE in response:
-            apply_label(service, message["id"], delete_label_id)
+        for message in messages:
+            # Check if email already labeled
+            label_ids = get_email_labels(service, message["id"])
+            if delete_label_id in label_ids or keep_label_id in label_ids:
+                continue
+            
+            raw_message_data = get_full_message(service, message['id'])
+            message_data = process_raw_email_message(raw_message_data)
+            response = classify_email(message_data)
+                    
+            if KEEP in response:
+                apply_label(service, message["id"], keep_label_id)
+            elif DELETE in response:
+                apply_label(service, message["id"], delete_label_id)
         
