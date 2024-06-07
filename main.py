@@ -145,7 +145,6 @@ def list_messages(service):
 
 
 def get_full_message(service, msg_id):
-    user_id = "me"
     message_data = {
         "headers": {},
         "body": "",
@@ -154,7 +153,7 @@ def get_full_message(service, msg_id):
 
     try:
         # Fetch the full message using the Gmail API
-        message = service.users().messages().get(userId=user_id, id=msg_id, format='full').execute()
+        message = service.users().messages().get(userId="me", id=msg_id, format='full').execute()
 
         # Extract headers from the message payload
         headers = message['payload']['headers']
@@ -185,12 +184,11 @@ def get_full_message(service, msg_id):
 
 
 def apply_label(service, msg_id, label_id):
-    # Hardcoding user_id to 'me' - currently do not have a use-case for another user_id
-    user_id = "me"
     try:
         # Apply the label to the message
         message = service.users().messages().modify(
-            userId=user_id,
+            # Hardcoding user_id to 'me' - currently do not have a use-case for another user_id
+            userId="me",
             id=msg_id,
             body={'addLabelIds': [label_id]}
         ).execute()
@@ -218,6 +216,15 @@ def process_raw_email_message(raw_email):
     processed_email["From"] = raw_email['headers']['From']
     processed_email["body"] = raw_email["body"]
     return repr(processed_email)
+
+
+def get_email_labels(service, message_id):
+    try:
+        message = service.users().messages().get(userId='me', id=message_id, format='metadata').execute()
+        return message.get('labelIds', [])
+    except Exception as e:
+        print(f"An error occurred: {e}")
+        return []
 
 
 if __name__ == "__main__":
@@ -252,11 +259,12 @@ if __name__ == "__main__":
     print(f"Currently sorting: {len(messages)} messages")
     
     for message in messages:
+        # Check if email already labeled
+        label_ids = get_email_labels(service, message["id"])
+        if delete_label_id in label_ids or keep_label_id in label_ids:
+            continue
+        
         raw_message_data = get_full_message(service, message['id'])
-        
-        # TODO: check if email already labeled
-        # breakpoint()
-        
         message_data = process_raw_email_message(raw_message_data)
         response = classify_email(message_data)
                 

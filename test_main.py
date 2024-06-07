@@ -89,3 +89,13 @@ def test_apply_label_to_message():
     
     # Clean-up: delete random label
     assert email_sorter.delete_label(service, new_label["id"])
+
+
+def test_get_email_labels():
+    service = email_sorter.get_api_service_obj()
+    messages = email_sorter.list_messages(service)
+    print(messages)
+    email_id = messages[0]["id"]
+    labels = email_sorter.get_email_labels(service, email_id)
+    print(f"Labels for email {email_id}: {labels}")
+    assert "INBOX" in labels
