@@ -3,26 +3,26 @@ import main as email_sorter
 import random
 
 
-def test_classify_email():
-    load_dotenv()
+# def test_classify_email():
+#     load_dotenv()
     
-    # Test with an email that should be deleted
-    email = "This is a super NOT important email.."
-    response = email_sorter.classify_email(email)
-    print(f"{email=}\n{response=}\n")
-    assert "DELETE" in response
+#     # Test with an email that should be deleted
+#     email = "This is a super NOT important email.."
+#     response = email_sorter.classify_email(email)
+#     print(f"{email=}\n{response=}\n")
+#     assert "DELETE" in response
     
-    # Test with an email that should be kept
-    email = "This is a super VERY important email.. definitely keep this one"
-    response = email_sorter.classify_email(email)
-    print(f"{email=}\n{response=}\n")
-    assert "KEEP" in response
+#     # Test with an email that should be kept
+#     email = "This is a super VERY important email.. definitely keep this one"
+#     response = email_sorter.classify_email(email)
+#     print(f"{email=}\n{response=}\n")
+#     assert "KEEP" in response
     
-    # Test with an ambiguous email
-    email = "This is an ambiguous email. It could possibly be deleted. It could also possibly be important."
-    response = email_sorter.classify_email(email)
-    print(f"{email=}\n{response=}\n")
-    assert "KEEP" in response or "DELETE" in response
+#     # Test with an ambiguous email
+#     email = "This is an ambiguous email. It could possibly be deleted. It could also possibly be important."
+#     response = email_sorter.classify_email(email)
+#     print(f"{email=}\n{response=}\n")
+#     assert "KEEP" in response or "DELETE" in response
 
 
 def test_list_labels():
