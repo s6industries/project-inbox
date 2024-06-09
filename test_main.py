@@ -99,3 +99,18 @@ def test_get_email_labels():
     labels = email_sorter.get_email_labels(service, email_id)
     print(f"Labels for email {email_id}: {labels}")
     assert "INBOX" in labels
+
+
+def test_process_raw_email_message():
+    service = email_sorter.get_api_service_obj()
+    messages, _ = email_sorter.list_messages(service, max_results=10)
+    
+    for message in messages:
+        raw_message = email_sorter.get_full_message(service, message['id'])
+        processed_message = email_sorter.process_raw_email_message(raw_message)
+        
+        assert "body" in processed_message
+        assert "subject" in processed_message
+        assert "from" in processed_message
+        assert "to" in processed_message
+        print(processed_message.keys())

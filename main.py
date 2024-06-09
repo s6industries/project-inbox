@@ -2,6 +2,7 @@ import os
 import os.path
 import base64
 import json
+import multiprocessing
 
 from dotenv import load_dotenv
 from openai import OpenAI
@@ -27,19 +28,16 @@ def classify_email(email_content):
     system_message = {
         "role": "system",
         "content": (
-            "You are an email assistant. Your task is to classify emails as either 'KEEP' or 'DELETE'. "
-            "Only keep emails that are critically important, such as work-related communications, personal correspondence of high significance, "
-            "or emails containing valuable information like receipts or important updates. Also, keep emails with sentimental value and good memories. "
-            "Delete emails that are promotional, generic notifications, setup instructions, or other non-critical content. "
-            "If an email does not clearly meet the 'KEEP' criteria, classify it as 'DELETE'. If unsure, lean towards 'DELETE'. "
-            "Examples of emails to DELETE: 'Your Google Play purchase verification settings', 'finish setting up your Android device with Google', 'Next ACM Webcast: Introduction to Packet Capture', 'Security alert'."
+            "You are an email categorization assistant. Your task is to read the email content "
+            "and categorize it into one of the following categories: Important, Delete, Keep, "
+            "Spam, Work, Personal, Other."
         )
     }
     
     user_message = {
         "role": "user", 
         "content": (
-            f"Classify the following email and only return either '{KEEP}' or '{DELETE}':\n\n{email_content}"
+            f"Categorize this email:\n\n{email_content}"
         )
     }
     
@@ -47,22 +45,15 @@ def classify_email(email_content):
     # https://platform.openai.com/docs/api-reference/making-requests
     # https://platform.openai.com/docs/api-reference/streaming
     response = client.chat.completions.create(
-        model="gpt-3.5-turbo",
+        model="gpt-4o",
         messages=[
             system_message,
             user_message
-        ]
+        ],
+        temperature=0
     )
     response = response.choices[0].message.content.strip()
-    
-    # Verify at least one label is specified
-    assert KEEP in response or DELETE in response, f"Received invalid response: {response}"
-    # Sanity check to make sure AI doesn't return both options
-    assert not(KEEP in response and DELETE in response)
-
-    if KEEP in response:
-        return KEEP
-    return DELETE
+    return response
 
 
 #
@@ -127,6 +118,40 @@ def create_label(service, label_name):
         return None
 
 
+label_id_cache = {}
+def get_label_id(service, label_name):
+    """
+    Retrieve the ID of a specified label. If the label does not exist, create it.
+
+    Parameters:
+    service (obj): The Gmail API service instance.
+    label_name (str): The name of the label to retrieve or create.
+
+    Returns:
+    str: The ID of the specified label.
+    """
+    # Check if the label ID is already in the cache
+    if label_name in label_id_cache:
+        return label_id_cache[label_name]
+    
+    # Retrieve all labels
+    labels = list_labels(service)
+    
+    # Search for the label with the specified name
+    for label in labels:
+        if label["name"] == label_name:
+            return label["id"]
+    
+    # Create the label if it does not exist
+    new_label = create_label(service, label_name)
+    
+    # Check if the label creation was successful
+    if 'id' in new_label:
+        return new_label["id"]
+    else:
+        raise Exception(f"Failed to create label: {label_name}")
+
+
 def delete_label(service, label_id):
     try:
         service.users().labels().delete(userId='me', id=label_id).execute()
@@ -151,9 +176,11 @@ def list_messages(service, page_token=None, max_results=100):
 
 def get_full_message(service, msg_id):
     message_data = {
+        "id": msg_id,
         "headers": {},
         "body": "",
-        "html_body": ""
+        "html_body": "",
+        "attachments": [],
     }
 
     try:
@@ -173,7 +200,7 @@ def get_full_message(service, msg_id):
                     # Check if the part contains an attachment - if it does skip for now
                     # TODO: consider weighing attachments for email sorting
                     if "attachmentId" in part["body"]:
-                        continue
+                        message_data["attachments"].append(part["body"]["attachmentId"])
                     # Double check that we're dealing with a "data" part
                     assert "data" in part["body"]
                     body = base64.urlsafe_b64decode(part['body']['data']).decode('utf-8')
@@ -181,7 +208,7 @@ def get_full_message(service, msg_id):
                 elif part['mimeType'] == 'text/html':
                     # Decode and store the HTML body of the email
                     if "attachmentId" in part["body"]:
-                        continue
+                        message_data["attachments"].append(part["body"]["attachmentId"])
                     assert "data" in part["body"]
                     html_body = base64.urlsafe_b64decode(part['body']['data']).decode('utf-8')
                     message_data["html_body"] += html_body
@@ -217,37 +244,50 @@ def apply_label(service, msg_id, label_id):
 
 def process_raw_email_message(raw_email):
     assert isinstance(raw_email["body"], str)
-    
+
     # Note: the Subject, From, and Date headers could all possibly differ.
     # For example, the "From" header could also be "FROM" or "Subject" could be "subject".
     # Need to account for these edge cases:
     headers = {
         "subject": "", 
+        "to": "",
         "from": "", 
-        "date": ""
+        "date": "",
+    }
+    alternatives = {
+        "to" : "delivered-to"
     }
     for key in headers:
         for email_header in raw_email["headers"]:
-            if email_header.lower() == key:
+            if key == email_header.lower():
+                headers[key] = email_header
+                break
+            # Check for alternative/less-common subject headers, e.g. 'Delivered-To'
+            if key in email_header.lower() and key in alternatives and alternatives[key] == email_header.lower():
                 headers[key] = email_header
                 break
     
     processed_email = {}
-    processed_email["Subject"] = raw_email['headers'][headers['subject']]
-    processed_email["Date"] = raw_email['headers'][headers['date']]
-    processed_email["From"] = raw_email['headers'][headers['from']]
+    processed_email["id"] = raw_email["id"]
 
-    # Note: avoid this error code by truncating the message body
+    print("\n===================================")
+    print(f"ID: {processed_email['id']}")
+    
+    for key, value in headers.items():
+        assert value, f"Error in header: {raw_email['id']=}, {key=}, {value=}, {raw_email['headers'].keys()=}"
+        processed_email[key] = raw_email['headers'][value]
+        print(f"{key}: {processed_email[key]}")
+        
+
+    # Note: avoid this GPT error code by truncating the message body
     # Error code: 400 - {'error': {'message': "This model's maximum context length is 16385 tokens.
     processed_email["body"] = raw_email["body"][:15000]
-    
-    print("\n===================================")
-    print(f"Subject: {processed_email['Subject']}")
-    print(f"Date: {processed_email['Date']}")
-    print(f"From: {processed_email['From']}")
     print(f"Message length: {len(raw_email['body'])}")
     
-    return repr(processed_email)
+    processed_email["attachments"] = raw_email["attachments"]
+    print(f"Attachments: {processed_email['attachments']}")
+    
+    return processed_email
 
 
 def get_email_labels(service, message_id):
@@ -282,38 +322,53 @@ def save_page_token(page_token):
         print(f"An error occurred: {e}")
 
 
+def classify_and_label(service, message):
+    # Check if email is "starred" or already processed
+    label_ids = get_email_labels(service, message["id"])
+    if "STARRED" in label_ids:
+        return
+    processed_label_id = get_label_id(service, "_processed")
+    if processed_label_id in label_ids:
+        return
+    
+    # Request full email, process, and classify the email
+    raw_message_data = get_full_message(service, message['id'])
+    message_data = process_raw_email_message(raw_message_data)
+    response = classify_email(repr(message_data))
+    if len(response) > 100:
+        raise Exception(f"Error: received unexpectedly long response: {response}")
+    
+    # Apply response label
+    category_name = "_" + response.lower()
+    category_label_id = get_label_id(service, category_name)
+    apply_label(service, message["id"], category_label_id)
+    
+    # Apply "_processed" label
+    apply_label(service, message["id"], processed_label_id)
+
+
+def save_email_content(service, message):
+    filepath = f"emails/{message['id']}.json"
+    if os.path.exists(filepath):
+        # Email already saved
+        return
+    
+    raw_message = get_full_message(service, message['id'])
+    processed_message = process_raw_email_message(raw_message)
+    with open(filepath, 'w') as file:
+        json.dump(processed_message, file, indent=4)
+
+
 if __name__ == "__main__":
     load_dotenv()
 
     service = get_api_service_obj()
-    
-    # Check for "keep" and "delete" labels. Create them if not present.
-    
-    KEEP_LABEL = "_keep"
-    DELETE_LABEL = "_delete"
-        
-    keep_label_id = None
-    delete_label_id = None
-    
-    labels = list_labels(service)
-    for label in labels:
-        if KEEP_LABEL == label["name"]:
-            keep_label_id = label["id"]
-        elif DELETE_LABEL == label["name"]:
-            delete_label_id = label["id"]
-
-    if not keep_label_id:
-        temp = create_label(service, KEEP_LABEL)
-        keep_label_id = temp["id"]
-    if not delete_label_id:
-        temp = create_label(service, DELETE_LABEL)
-        delete_label_id = temp["id"]
 
     # Loop through the messages and classify
     
     page_token = load_page_token()
     emails_sorted = 0
-    max_results = 100
+    max_results = 100 # Max value google will accept is 500
     while True:
         # Backup the current page_token to a json file
         save_page_token(page_token)
@@ -325,24 +380,11 @@ if __name__ == "__main__":
         print(f"Currently sorting: {len(messages)} messages")
         if len(messages) < max_results:
             break
-        
-        for message in messages:
-            # Check if email is "starred" or already labeled
-            label_ids = get_email_labels(service, message["id"])
-            if "STARRED" in label_ids:
-                continue
-            if delete_label_id in label_ids or keep_label_id in label_ids:
-                continue
-            
-            # Request full email, process, and classify the email
-            raw_message_data = get_full_message(service, message['id'])
-            message_data = process_raw_email_message(raw_message_data)
-            response = classify_email(message_data)
-            
-            # Apply label      
-            if KEEP in response:
-                apply_label(service, message["id"], keep_label_id)
-            elif DELETE in response:
-                apply_label(service, message["id"], delete_label_id)
+                
+        # Create a pool of worker processes
+        with multiprocessing.Pool() as pool:
+            # Use starmap to pass multiple arguments to the function
+            results = pool.starmap(save_email_content, [(service, message) for message in messages])
+        break # TODO: REMOVE THIS WHEN DONE DEBUGGING
     
     print(f"Successfully sorted {emails_sorted} emails")
