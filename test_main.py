@@ -1,6 +1,10 @@
 from dotenv import load_dotenv
 import main as email_sorter
 import random
+import json
+import os
+import unittest
+import tempfile
 
 
 # def test_classify_email():
@@ -109,8 +113,77 @@ def test_process_raw_email_message():
         raw_message = email_sorter.get_full_message(service, message['id'])
         processed_message = email_sorter.process_raw_email_message(raw_message)
         
-        assert "body" in processed_message
         assert "subject" in processed_message
+        assert "snippet" in processed_message
         assert "from" in processed_message
         assert "to" in processed_message
         print(processed_message.keys())
+
+
+class TestBuildEmailChunks(unittest.TestCase):
+    
+    def setUp(self):
+        # Create a temporary directory
+        self.test_dir = tempfile.TemporaryDirectory()
+        
+        # Create sample email files
+        self.emails = [
+            {
+                "subject": "Test Email 1",
+                "body": "This is the body of test email 1.",
+                "attachments": ["file1.txt", "file2.txt"]
+            },
+            {
+                "subject": "Test Email 2",
+                "body": "This is the body of test email 2.",
+                "attachments": ["file3.txt"]
+            },
+            {
+                "subject": "Test Email 3",
+                "body": "This is the body of test email 3.",
+                "attachments": []
+            }
+        ]
+        
+        for i, email in enumerate(self.emails):
+            with open(os.path.join(self.test_dir.name, f"email_{i}.json"), "w") as f:
+                json.dump(email, f)
+    
+    def tearDown(self):
+        self.test_dir.cleanup()
+
+
+    def test_build_email_chunks(self):
+        chunk_size = 300
+        chunks = email_sorter.build_email_chunks(emails_dir=self.test_dir.name, chunk_size=chunk_size)
+        
+        # Test the output
+        self.assertIsInstance(chunks, list)
+        self.assertGreater(len(chunks), 0)
+        
+        # Verify the content of the chunks
+        for chunk in chunks:
+            self.assertLessEqual(len(chunk), chunk_size)
+            self.assertIn("subject:", chunk)
+            self.assertIn("body:", chunk)
+            self.assertIn("num_attachments:", chunk)
+    
+    def test_large_chunk_size(self):
+        # Define a large chunk size to ensure all emails fit into one chunk
+        chunk_size = 10000
+        chunks = email_sorter.build_email_chunks(emails_dir=self.test_dir.name, chunk_size=chunk_size)
+        self.assertEqual(len(chunks), 1)
+    
+    def test_small_chunk_size(self):
+        # Define a small chunk size to ensure multiple chunks are created
+        chunk_size = 100
+        chunks = email_sorter.build_email_chunks(emails_dir=self.test_dir.name, chunk_size=chunk_size)
+        self.assertGreater(len(chunks), 1)
+
+
+# def test_debug_message():
+#     message_id = "16822b72a074cff9"
+#     service = email_sorter.get_api_service_obj()
+#     message = service.users().messages().get(userId="me", id=message_id, format='full').execute()    
+#     raw_message = email_sorter.get_full_message(service, message_id)
+#     print(json.dumps(raw_message, indent=4))

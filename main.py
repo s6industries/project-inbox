@@ -22,11 +22,32 @@ DEBUG = 1
 KEEP = "KEEP"
 DELETE = "DELETE"
 
-def classify_email(email_content):
-    client = OpenAI(
-        api_key=os.environ['OPENAI_API_KEY'],  # this is also the default, it can be omitted
-    )
-    
+
+def get_training_data_prompt():
+    TRAINING_DATA_DIR = "training_data"
+    prompt = "Here is the training set of emails:\n\n"
+    for filename in os.listdir(TRAINING_DATA_DIR):
+        filepath = os.path.join(TRAINING_DATA_DIR, filename)
+        # checking if it is a file
+        if not os.path.isfile(filepath):
+            continue
+        with open(filepath, "r") as file:
+            data = json.load(file)
+        # add attachment count
+        data["num_attachments"] = len(data["attachments"])
+        del data["attachments"]
+        for key, value in data.items():
+            if key == "classification" or key == "reason": # print these last
+                continue
+            prompt += f"{key}: {value}\n"
+        prompt += "classification: " + data["classification"] + "\n"
+        prompt += "reason: " + data["reason"] + "\n"
+        prompt += "\n"
+    prompt += "In a separate message, I will send several emails to classify. Do you have any questions before I proceed?\n"
+    return prompt
+
+
+def build_initial_messages():
     system_message = {
         "role": "system",
         "content": (
@@ -34,46 +55,84 @@ def classify_email(email_content):
             "and categorize it into one of the following categories: KEEP, DELETE, or UNSURE"
         )
     }
-    
-    initial_prompt = {
+
+    with open("initial_prompt.md", "r") as file:
+        initial_prompt_content = file.readlines()
+
+    user_message1 = {
         "role": "user",
-        "content": """
-Please help me categorize my email. Your task is to read the email content and classify it into one of the following categories: KEEP, DELETE, or UNSURE. Also provide a reason for your choice.
-
-Categories:
-* KEEP: Important emails that require attention or have sentimental value.
-* DELETE: Unimportant emails that can be discarded or old emails that are no longer relevant.
-* UNSURE: Emails that are ambiguous and need further review.
-
-Example email format:
-
-```
-id: 1690b96f1d18385c
-snippet: Orders received. Thank you From: Zion Perez [mailto:zion.perez@gmail.com] Sent: Wednesday, February 20, 2019 9:00 AM To: orders@alexander-tvl.com Subject: CPT Zion Perez - orders Sir/Ma&#39;am,
-subject: RE: CPT Zion Perez - orders
-to: zion.perez@gmail.com
-from: Orders <orders@alexander-tvl.com>
-date: Wed, 20 Feb 2019 09:47:09 -0600
-num_attachments: 0
-```
-
-Example response format:
-
-```
-id: 1690b96f1d18385c
-classification: delete
-reason: The email is from 2019 and pertains to orders, which are likely outdated and no longer relevant.
-```
-
-In a separate message, I will send a training set of emails with their classifications for you to reference. Do you have any questions before I proceed?
-"""
+        "content": initial_prompt_content
     }
     
+    gpt_response1 = {
+        "role": "assistant",
+        "content": "I understand the task. Please go ahead and send the training set of emails for reference."
+    }
+    
+    user_message2 = {
+        "role": "user", 
+        "content": get_training_data_prompt()
+    }
+    
+    gpt_response2 = {
+        "role": "assistant",
+        "content": "No questions. Please proceed with sending the emails to classify."
+    }
+    
+    return [system_message, user_message1, gpt_response1, user_message2, gpt_response2]
+
+
+# This function breaks down email data into fix sized chunks so that GPT can 
+# be given an appropriately sized prompt
+EMAILS_DIR = "emails"
+def build_email_chunks(emails_dir=EMAILS_DIR, chunk_size=30000):
+    chunks = []
+    chunk = ""
+    
+    for filename in os.listdir(emails_dir):
+        filepath = os.path.join(emails_dir, filename)
+
+        if not os.path.isfile(filepath):
+            continue
+        
+        with open(filepath, "r") as email_file:
+            data = json.load(email_file)
+
+        # add attachment count and delete attachments
+        data["num_attachments"] = len(data.get("attachments", []))            
+        data.pop("attachments", None)
+
+        email_text = ""
+        for key, value in data.items():
+            email_text += f"{key}: {value}\n"
+        email_text += "\n"
+
+        if len(chunk) + len(email_text) > chunk_size:
+            chunks.append(chunk)
+            chunk = email_text
+        else:
+            chunk += email_text
+
+    if len(chunk) > 0:
+        chunks.append(chunk)
+    return chunks
+
+
+def classify_emails():
+    email_chunks = build_email_chunks()
+    
+    # The param `os.environ['OPENAI_API_KEY']` is also the default; it can be omitted
+    client = OpenAI(api_key=os.environ['OPENAI_API_KEY']) 
+    
+    messages = build_initial_messages()
+    
+    while True:
+        # Build list of emails
+        break
+
     user_message = {
         "role": "user", 
-        "content": (
-            f"Categorize this email:\n\n{email_content}"
-        )
+        "content": f"Classify the following emails:\n\n{emails}"
     }
     
     # References:
@@ -83,7 +142,8 @@ In a separate message, I will send a training set of emails with their classific
         model="gpt-4o",
         messages=[
             system_message,
-            user_message
+            user_message1, gpt_response1,
+            user_message2, gpt_response2,
         ],
         temperature=0
     )
@@ -414,7 +474,6 @@ def save_email_content(service, message):
 
 if __name__ == "__main__":
     load_dotenv()
-
     service = get_api_service_obj()
 
     # Loop through the emails and save them locally
