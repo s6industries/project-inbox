@@ -118,37 +118,37 @@ def build_email_chunks(emails_dir=EMAILS_DIR, chunk_size=30000):
     return chunks
 
 
-def classify_emails():
-    email_chunks = build_email_chunks()
+# def classify_emails():
+#     email_chunks = build_email_chunks()
     
-    # The param `os.environ['OPENAI_API_KEY']` is also the default; it can be omitted
-    client = OpenAI(api_key=os.environ['OPENAI_API_KEY']) 
+#     # The param `os.environ['OPENAI_API_KEY']` is also the default; it can be omitted
+#     client = OpenAI(api_key=os.environ['OPENAI_API_KEY']) 
     
-    messages = build_initial_messages()
+#     messages = build_initial_messages()
     
-    while True:
-        # Build list of emails
-        break
+#     while True:
+#         # Build list of emails
+#         break
 
-    user_message = {
-        "role": "user", 
-        "content": f"Classify the following emails:\n\n{emails}"
-    }
+#     user_message = {
+#         "role": "user", 
+#         "content": f"Classify the following emails:\n\n{emails}"
+#     }
     
-    # References:
-    # https://platform.openai.com/docs/api-reference/making-requests
-    # https://platform.openai.com/docs/api-reference/streaming
-    response = client.chat.completions.create(
-        model="gpt-4o",
-        messages=[
-            system_message,
-            user_message1, gpt_response1,
-            user_message2, gpt_response2,
-        ],
-        temperature=0
-    )
-    response = response.choices[0].message.content.strip()
-    return response
+#     # References:
+#     # https://platform.openai.com/docs/api-reference/making-requests
+#     # https://platform.openai.com/docs/api-reference/streaming
+#     response = client.chat.completions.create(
+#         model="gpt-4o",
+#         messages=[
+#             system_message,
+#             user_message1, gpt_response1,
+#             user_message2, gpt_response2,
+#         ],
+#         temperature=0
+#     )
+#     response = response.choices[0].message.content.strip()
+#     return response
 
 
 #
@@ -434,29 +434,29 @@ def save_page_token(page_token):
         print(f"An error occurred: {e}")
 
 
-def classify_and_label(service, message):
-    # Check if email is "starred" or already processed
-    label_ids = get_email_labels(service, message["id"])
-    if "STARRED" in label_ids:
-        return
-    processed_label_id = get_label_id(service, "_processed")
-    if processed_label_id in label_ids:
-        return
+# def classify_and_label(service, message):
+#     # Check if email is "starred" or already processed
+#     label_ids = get_email_labels(service, message["id"])
+#     if "STARRED" in label_ids:
+#         return
+#     processed_label_id = get_label_id(service, "_processed")
+#     if processed_label_id in label_ids:
+#         return
     
-    # Request full email, process, and classify the email
-    raw_message_data = get_full_message(service, message['id'])
-    message_data = process_raw_email_message(raw_message_data)
-    response = classify_email(repr(message_data))
-    if len(response) > 100:
-        raise Exception(f"Error: received unexpectedly long response: {response}")
+#     # Request full email, process, and classify the email
+#     raw_message_data = get_full_message(service, message['id'])
+#     message_data = process_raw_email_message(raw_message_data)
+#     response = classify_email(repr(message_data))
+#     if len(response) > 100:
+#         raise Exception(f"Error: received unexpectedly long response: {response}")
     
-    # Apply response label
-    category_name = "_" + response.lower()
-    category_label_id = get_label_id(service, category_name)
-    apply_label(service, message["id"], category_label_id)
+#     # Apply response label
+#     category_name = "_" + response.lower()
+#     category_label_id = get_label_id(service, category_name)
+#     apply_label(service, message["id"], category_label_id)
     
-    # Apply "_processed" label
-    apply_label(service, message["id"], processed_label_id)
+#     # Apply "_processed" label
+#     apply_label(service, message["id"], processed_label_id)
 
 
 EMAILS_DIR = "emails"
