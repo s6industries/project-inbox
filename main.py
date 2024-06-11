@@ -25,7 +25,7 @@ DELETE = "DELETE"
 #
 
 def is_debug():
-    return os.environ.get("DEBUG", False)
+    return os.environ.get("DEBUG", "0") == "1"
 
 
 #

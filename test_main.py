@@ -256,12 +256,12 @@ def main_func_helper():
 
 
 def test_main_no_debug():
-    os.environ["DEBUG"] = 0
+    os.environ["DEBUG"] = "0"
     main_func_helper()
 
 
 def test_main_debug():
-    os.environ["DEBUG"] = 1
+    os.environ["DEBUG"] = "1"
     main_func_helper()
 
 
