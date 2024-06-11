@@ -297,21 +297,21 @@ def get_full_message(service, msg_id):
     # Check if the message payload contains parts
     if 'parts' in message['payload']:
         for part in message['payload']['parts']:
-            # if part['mimeType'] == 'text/plain':
-            #     # Decode and store the plain text body of the email
-            #     # Double check that we're dealing with a "data" part
-            #     assert "data" in part["body"]
-            #     body = base64.urlsafe_b64decode(part['body']['data']).decode('utf-8')
-            #     message_data["body"] += body
-            # elif part['mimeType'] == 'text/html':
-            #     # Decode and store the HTML body of the email
-            #     assert "data" in part["body"]
-            #     html_body = base64.urlsafe_b64decode(part['body']['data']).decode('utf-8')
-            #     message_data["html_body"] += html_body
             if "attachmentId" in part["body"]:
                 # Check if the part contains an attachment
                 # TODO: consider weighing attachments for email sorting
                 message_data["attachments"].append(part["body"]["attachmentId"])
+            elif part['mimeType'] == 'text/plain':
+                # Decode and store the plain text body of the email
+                # Double check that we're dealing with a "data" part
+                assert "data" in part["body"]
+                body = base64.urlsafe_b64decode(part['body']['data']).decode('utf-8')
+                message_data["body"] += body
+            elif part['mimeType'] == 'text/html':
+                # Decode and store the HTML body of the email
+                assert "data" in part["body"]
+                html_body = base64.urlsafe_b64decode(part['body']['data']).decode('utf-8')
+                message_data["html_body"] += html_body
     else:
         # If no parts are found, decode and store the body of the email directly
         if "data" in message["payload"]["body"]:
