@@ -13,15 +13,24 @@ from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 
 
-DEBUG = 1
+#
+# Global Constants
+#
+KEEP = "KEEP"
+DELETE = "DELETE"
+
+
+#
+# Debug
+#
+
+def is_debug():
+    return os.environ.get("DEBUG", False)
+
 
 #
 # OpenAI API Functions
 #
-
-KEEP = "KEEP"
-DELETE = "DELETE"
-
 
 def get_training_data_prompt(training_data_dir):
     prompt = "Here is the training set of emails:\n\n"
@@ -458,7 +467,7 @@ def save_page_token(page_token):
 #     apply_label(service, message["id"], processed_label_id)
 
 
-def save_email_content(service, message, emails_dir="emails"):
+def save_email_content(service, message, emails_dir):
     os.makedirs(emails_dir, exist_ok=True)
     filepath = f"{emails_dir}/{message['id']}.json"
     if os.path.exists(filepath):
@@ -471,7 +480,7 @@ def save_email_content(service, message, emails_dir="emails"):
         json.dump(processed_message, file, indent=4)
 
 
-def main():
+def main(emails_dir="emails"):
     load_dotenv()
     service = get_api_service_obj()
 
@@ -489,12 +498,14 @@ def main():
         emails_sorted += len(messages)
         
         # Save emails
-        if DEBUG:
+        if is_debug(): 
+            # Run synchronously
             for message in messages:
-                save_email_content(service, message)
-        else: # else process asynchronously
+                save_email_content(service, message, emails_dir)
+        else: 
+            # Run asynchronously
             # Create a list of arguments to pass to save_email_content
-            params = [(service, message) for message in messages]
+            params = [(service, message, emails_dir) for message in messages]
             # Create a pool of worker processes to save emails asynchronously
             with multiprocessing.Pool() as pool:
                 # Use starmap to pass multiple arguments to the function
@@ -502,7 +513,6 @@ def main():
         
         if not page_token:
             break
-    print(f"Successfully sorted {emails_sorted} emails")
         
     # # Consolidate contacts into a dict
     # contacts = {} # "email" : email_count

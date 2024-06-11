@@ -228,12 +228,13 @@ def test_build_initial_prompt():
     assert "Please proceed with sending the emails to classify" in messages[4]["content"]
 
 
-def test_main_func():
+def main_func_helper():
     test_message = {
         "subject": "test email 003",
         "snippet": "This email is used for pytest `test_main`. Do NOT delete this email."
     }
-    email_sorter.main()
+    test_dir = tempfile.TemporaryDirectory()
+    email_sorter.main(test_dir.name)
     
     # Currently all emails should be saved locally
     found_test_message = False
@@ -251,8 +252,19 @@ def test_main_func():
             found_test_message = True
             assert test_message["snippet"] == data["snippet"]
     assert found_test_message
-    
-    
+    test_dir.cleanup()
+
+
+def test_main_no_debug():
+    os.environ["DEBUG"] = 0
+    main_func_helper()
+
+
+def test_main_debug():
+    os.environ["DEBUG"] = 1
+    main_func_helper()
+
+
 # def test_debug_message():
 #     message_id = "16822b72a074cff9"
 #     service = email_sorter.get_api_service_obj()
