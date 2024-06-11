@@ -225,6 +225,7 @@ def test_main_func():
         
         if test_message["Subject"] == data["subject"]:
             found_test_message = True
+            print(f"{data=}")
             assert test_message["body"] == data["body"]
     assert found_test_message
     
