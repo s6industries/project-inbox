@@ -23,7 +23,7 @@ KEEP = "KEEP"
 DELETE = "DELETE"
 
 
-def get_training_data_prompt(training_data_dir="training_data"):
+def get_training_data_prompt(training_data_dir):
     prompt = "Here is the training set of emails:\n\n"
     for filename in os.listdir(training_data_dir):
         filepath = os.path.join(training_data_dir, filename)
@@ -46,7 +46,7 @@ def get_training_data_prompt(training_data_dir="training_data"):
     return prompt
 
 
-def build_initial_messages():
+def build_initial_messages(training_data_dir="training_data"):
     system_message = {
         "role": "system",
         "content": (
@@ -56,7 +56,7 @@ def build_initial_messages():
     }
 
     with open("initial_prompt.md", "r") as file:
-        initial_prompt_content = file.readlines()
+        initial_prompt_content = file.read()
 
     user_message1 = {
         "role": "user",
@@ -70,7 +70,7 @@ def build_initial_messages():
     
     user_message2 = {
         "role": "user", 
-        "content": get_training_data_prompt()
+        "content": get_training_data_prompt(training_data_dir)
     }
     
     gpt_response2 = {

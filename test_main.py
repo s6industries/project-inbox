@@ -181,7 +181,7 @@ class TestBuildEmailChunks(unittest.TestCase):
         assert len(chunks) > 1
 
 
-def test_get_training_data_prompt():
+def create_test_emails():
     test_dir = tempfile.TemporaryDirectory()
     for i in range(20):
         email = {
@@ -192,14 +192,40 @@ def test_get_training_data_prompt():
             "reason": "This is a test email and likely not important",
             "attachments": []
         }
-        with open(os.path.join(test_dir.name, f"email_{i}.json"), "w") as f:
-            json.dump(email, f)
+        with open(os.path.join(test_dir.name, f"email_{i}.json"), "w") as file:
+            json.dump(email, file)
+    return test_dir
 
-    prompt = email_sorter.get_training_data_prompt(training_data_dir=test_dir.name)
+
+def test_get_training_data_prompt():
+    test_dir = create_test_emails()
+    prompt = email_sorter.get_training_data_prompt(test_dir.name)
     assert "Here is the training set of emails:" in prompt
     assert prompt.count("id:") == len(os.listdir(test_dir.name))
     assert "Do you have any questions" in prompt
     test_dir.cleanup()
+
+
+def test_build_initial_prompt():
+    test_dir = create_test_emails()
+    messages = email_sorter.build_initial_messages(test_dir.name)
+    test_dir.cleanup()
+
+    # Verify expected output
+    assert "system" == messages[0]["role"]
+    assert "You are an email categorization assistant" in messages[0]["content"]
+    
+    assert "user" == messages[1]["role"]
+    assert "Please help me categorize my email" in messages[1]["content"]
+    
+    assert "assistant" == messages[2]["role"]
+    assert "I understand the task" in messages[2]["content"]
+    
+    assert "user" == messages[3]["role"]
+    assert "Here is the training set" in messages[3]["content"]
+    
+    assert "assistant" == messages[4]["role"]
+    assert "Please proceed with sending the emails to classify" in messages[4]["content"]
 
 
 def test_main_func():
