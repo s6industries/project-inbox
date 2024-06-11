@@ -201,8 +201,34 @@ def test_get_training_data_prompt():
     assert "Do you have any questions" in prompt
     test_dir.cleanup()
 
-    # print(prompt)
 
+def test_main_func():
+    test_message = {
+        "Subject": "test email 003",
+        "From": "testuser9448@gmail.com",
+        "To": "testuser9448@gmail.com",
+        "body": "This email is used for pytest `test_main`. Do NOT delete this email."
+    }
+    email_sorter.main()
+    
+    # Currently all emails should be saved locally
+    found_test_message = False
+    EMAILS_DIR = "emails"
+    for filename in os.listdir(EMAILS_DIR):
+        filepath = os.path.join(EMAILS_DIR, filename)
+
+        if not os.path.isfile(filepath):
+            continue
+        
+        with open(filepath, "r") as file:
+            data = json.load(file)
+        
+        if test_message["Subject"] == data["subject"]:
+            found_test_message = True
+            assert test_message["body"] == data["body"]
+    assert found_test_message
+    
+    
 # def test_debug_message():
 #     message_id = "16822b72a074cff9"
 #     service = email_sorter.get_api_service_obj()

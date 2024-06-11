@@ -458,9 +458,9 @@ def save_page_token(page_token):
 #     apply_label(service, message["id"], processed_label_id)
 
 
-EMAILS_DIR = "emails"
-def save_email_content(service, message):
-    filepath = f"{EMAILS_DIR}/{message['id']}.json"
+def save_email_content(service, message, emails_dir="emails"):
+    os.makedirs(emails_dir, exist_ok=True)
+    filepath = f"{emails_dir}/{message['id']}.json"
     if os.path.exists(filepath):
         # Email already saved
         return
@@ -471,7 +471,7 @@ def save_email_content(service, message):
         json.dump(processed_message, file, indent=4)
 
 
-if __name__ == "__main__":
+def main():
     load_dotenv()
     service = get_api_service_obj()
 
@@ -488,10 +488,7 @@ if __name__ == "__main__":
         messages, page_token = list_messages(service, page_token, max_results)        
         emails_sorted += len(messages)
         
-        print(f"Currently sorting: {len(messages)} messages")
-        if len(messages) < max_results:
-            break
-
+        # Save emails
         if DEBUG:
             for message in messages:
                 save_email_content(service, message)
@@ -501,28 +498,35 @@ if __name__ == "__main__":
             # Create a pool of worker processes to save emails asynchronously
             with multiprocessing.Pool() as pool:
                 # Use starmap to pass multiple arguments to the function
-                results = pool.starmap(save_email_content, params)
+                pool.starmap(save_email_content, params)
+        
+        if not page_token:
+            break
     print(f"Successfully sorted {emails_sorted} emails")
         
-    # Consolidate contacts into a dict
-    contacts = {} # "email" : email_count
-    for filename in os.listdir(EMAILS_DIR):
-        filepath = os.path.join(EMAILS_DIR, filename)
+    # # Consolidate contacts into a dict
+    # contacts = {} # "email" : email_count
+    # for filename in os.listdir(EMAILS_DIR):
+    #     filepath = os.path.join(EMAILS_DIR, filename)
 
-        if not os.path.isfile(filepath):
-            continue
+    #     if not os.path.isfile(filepath):
+    #         continue
         
-        with open(filepath, "r") as email_file:
-            data = json.load(email_file)
-            print(data)
-            headers = ["cc", "to", "from"]
-            for header in headers:
-                if header in data:
-                    contact_name = data[header]
-                    contacts[contact_name] = contacts.get(contact_name, 0) + 1
-    with open("contacts.json", "w") as contacts_file:
-        sorted_contacts = dict(sorted(contacts.items(), key=lambda item: item[1], reverse=True))
-        json.dump(sorted_contacts, contacts_file, indent=4)
+    #     with open(filepath, "r") as email_file:
+    #         data = json.load(email_file)
+    #         print(data)
+    #         headers = ["cc", "to", "from"]
+    #         for header in headers:
+    #             if header in data:
+    #                 contact_name = data[header]
+    #                 contacts[contact_name] = contacts.get(contact_name, 0) + 1
+    # with open("contacts.json", "w") as contacts_file:
+    #     sorted_contacts = dict(sorted(contacts.items(), key=lambda item: item[1], reverse=True))
+    #     json.dump(sorted_contacts, contacts_file, indent=4)
 
 # TODO: update prompt, send new emails to gpt, save sorted email data to processed_emails folder, review
 # TODO: then run on all emails
+
+
+if __name__ == "__main__": # pragma: no cover
+    main()
