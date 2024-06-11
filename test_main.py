@@ -204,10 +204,8 @@ def test_get_training_data_prompt():
 
 def test_main_func():
     test_message = {
-        "Subject": "test email 003",
-        "From": "testuser9448@gmail.com",
-        "To": "testuser9448@gmail.com",
-        "body": "This email is used for pytest `test_main`. Do NOT delete this email."
+        "subject": "test email 003",
+        "snippet": "This email is used for pytest `test_main`. Do NOT delete this email."
     }
     email_sorter.main()
     
@@ -223,10 +221,9 @@ def test_main_func():
         with open(filepath, "r") as file:
             data = json.load(file)
         
-        if test_message["Subject"] == data["subject"]:
+        if test_message["subject"] == data["subject"]:
             found_test_message = True
-            print(f"{data=}")
-            assert test_message["body"] == data["body"]
+            assert test_message["snippet"] == data["snippet"]
     assert found_test_message
     
     
