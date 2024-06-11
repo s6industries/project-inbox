@@ -158,28 +158,50 @@ class TestBuildEmailChunks(unittest.TestCase):
         chunks = email_sorter.build_email_chunks(emails_dir=self.test_dir.name, chunk_size=chunk_size)
         
         # Test the output
-        self.assertIsInstance(chunks, list)
-        self.assertGreater(len(chunks), 0)
+        assert isinstance(chunks, list)
+        assert len(chunks) > 0
         
         # Verify the content of the chunks
         for chunk in chunks:
-            self.assertLessEqual(len(chunk), chunk_size)
-            self.assertIn("subject:", chunk)
-            self.assertIn("body:", chunk)
-            self.assertIn("num_attachments:", chunk)
+            assert len(chunk) <= chunk_size
+            assert "subject:" in chunk
+            assert "body:" in chunk
+            assert "num_attachments:" in chunk
     
     def test_large_chunk_size(self):
         # Define a large chunk size to ensure all emails fit into one chunk
         chunk_size = 10000
         chunks = email_sorter.build_email_chunks(emails_dir=self.test_dir.name, chunk_size=chunk_size)
-        self.assertEqual(len(chunks), 1)
+        assert len(chunks) == 1
     
     def test_small_chunk_size(self):
         # Define a small chunk size to ensure multiple chunks are created
         chunk_size = 100
         chunks = email_sorter.build_email_chunks(emails_dir=self.test_dir.name, chunk_size=chunk_size)
-        self.assertGreater(len(chunks), 1)
+        assert len(chunks) > 1
 
+
+def test_get_training_data_prompt():
+    test_dir = tempfile.TemporaryDirectory()
+    for i in range(20):
+        email = {
+            "id": str(random.randrange(10000, 99999)),
+            "subject": f"Test Email {i}",
+            "body": f"This is the body of test email {i}.",
+            "classification": "delete",
+            "reason": "This is a test email and likely not important",
+            "attachments": []
+        }
+        with open(os.path.join(test_dir.name, f"email_{i}.json"), "w") as f:
+            json.dump(email, f)
+
+    prompt = email_sorter.get_training_data_prompt(training_data_dir=test_dir.name)
+    assert "Here is the training set of emails:" in prompt
+    assert prompt.count("id:") == len(os.listdir(test_dir.name))
+    assert "Do you have any questions" in prompt
+    test_dir.cleanup()
+
+    # print(prompt)
 
 # def test_debug_message():
 #     message_id = "16822b72a074cff9"

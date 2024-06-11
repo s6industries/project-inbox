@@ -23,11 +23,10 @@ KEEP = "KEEP"
 DELETE = "DELETE"
 
 
-def get_training_data_prompt():
-    TRAINING_DATA_DIR = "training_data"
+def get_training_data_prompt(training_data_dir="training_data"):
     prompt = "Here is the training set of emails:\n\n"
-    for filename in os.listdir(TRAINING_DATA_DIR):
-        filepath = os.path.join(TRAINING_DATA_DIR, filename)
+    for filename in os.listdir(training_data_dir):
+        filepath = os.path.join(training_data_dir, filename)
         # checking if it is a file
         if not os.path.isfile(filepath):
             continue
