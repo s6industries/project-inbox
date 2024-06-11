@@ -1,0 +1,79 @@
+id: 1460033c23ee9900
+Classification: Keep
+Reason: The email is from a family member and provides personal and supportive messages, making it sentimental and worth keeping.
+
+id: 1469090b12b88be7
+Classification: Delete
+Reason: The email is from 2014, related to a work matter, and given the current year is 2024, it is likely no longer relevant.
+
+id: 1657023ecfa26e4b
+Classification: Delete
+Reason: The email is from 2018 and relates to an auto-renewal notification, which is very old and likely no longer relevant.
+
+id: 1654947fe47dbc3f
+Classification: Keep
+Reason: The email is related to a merger and contains a prompt for action, indicating it pertains to an important business matter.
+
+id: 1644524c7546bdf2
+Classification: Delete
+Reason: The email subject and the presence of an attachment suggest it may be related to a specific, possibly one-time interest (photoshop effect). The snippet is empty, and there is no indication of ongoing importance.
+
+id: 16780036695213e8
+Classification: Delete
+Reason: The email is from 2018 and relates to a visa petition, which is likely resolved by now, making it outdated and irrelevant.
+
+id: 168258608a9845f1
+Classification: Delete
+Reason: The email is from 2019, related to military coordination, and given the current year is 2024, it is likely no longer relevant.
+
+id: 1602256e0b0fc0c5
+Classification: Delete
+Reason: The email is from 2017 and pertains to a DUNS number request, which is very old and likely no longer relevant.
+
+id: 167536bdb3ac5704
+Classification: Delete
+Reason: The email is from 2018, related to a forwarded message about a flight, which is likely outdated and irrelevant now.
+
+id: 146133c640892eae
+Classification: Keep
+Reason: The email is from a family member and provides contact information, which might still be useful or sentimental.
+
+id: 16831c2b8eba30a1
+Classification: Delete
+Reason: The email is from 2019, related to an incident report, and given the current year is 2024, it is likely resolved and no longer relevant.
+
+id: 16373a08ae49fb00
+Classification: Delete
+Reason: The email is from 2018 and relates to an annual report notice, which is outdated and likely no longer relevant.
+
+id: 1690da8a2d344a49
+Classification: Delete
+Reason: The email is from 2019 and relates to an account expiring, which is old and likely no longer relevant.
+
+ID: 1690b96f1d18385c
+Classification: Delete
+Reason: The email is from 2019 and pertains to orders, which are likely outdated and no longer relevant.
+
+ID: 1461ab2db449cf0d
+Classification: Delete
+Reason: The email is from 2014 and relates to military equipment, making it very old and likely irrelevant now.
+
+ID: 1699c334070fae4f
+Classification: Delete
+Reason: The email is from 2019 and pertains to a past event, making it outdated and no longer relevant.
+
+ID: 16785b97981caea9
+Classification: Delete
+Reason: The email is from 2018 and pertains to a message from a visa service, which is likely outdated and no longer relevant.
+
+ID: 169233efd262e8ef
+Classification: Delete
+Reason: The email is from 2019 and pertains to a welcome letter, which is very old and likely no longer relevant.
+
+ID: 1683395a2195111e
+Classification: Delete
+Reason: The email is from 2019 and relates to a credit score alert, making it outdated and no longer relevant.
+
+ID: 1699626978167702
+Classification: Delete
+Reason: The email is from 2019 and relates to a lesson, making it outdated and likely no longer relevant.

@@ -13,6 +13,8 @@ from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 
 
+DEBUG = 1
+
 #
 # OpenAI API Functions
 #
@@ -29,9 +31,42 @@ def classify_email(email_content):
         "role": "system",
         "content": (
             "You are an email categorization assistant. Your task is to read the email content "
-            "and categorize it into one of the following categories: Important, Delete, Keep, "
-            "Spam, Work, Personal, Other."
+            "and categorize it into one of the following categories: KEEP, DELETE, or UNSURE"
         )
+    }
+    
+    initial_prompt = {
+        "role": "user",
+        "content": """
+Please help me categorize my email. Your task is to read the email content and classify it into one of the following categories: KEEP, DELETE, or UNSURE. Also provide a reason for your choice.
+
+Categories:
+* KEEP: Important emails that require attention or have sentimental value.
+* DELETE: Unimportant emails that can be discarded or old emails that are no longer relevant.
+* UNSURE: Emails that are ambiguous and need further review.
+
+Example email format:
+
+```
+id: 1690b96f1d18385c
+snippet: Orders received. Thank you From: Zion Perez [mailto:zion.perez@gmail.com] Sent: Wednesday, February 20, 2019 9:00 AM To: orders@alexander-tvl.com Subject: CPT Zion Perez - orders Sir/Ma&#39;am,
+subject: RE: CPT Zion Perez - orders
+to: zion.perez@gmail.com
+from: Orders <orders@alexander-tvl.com>
+date: Wed, 20 Feb 2019 09:47:09 -0600
+num_attachments: 0
+```
+
+Example response format:
+
+```
+id: 1690b96f1d18385c
+classification: delete
+reason: The email is from 2019 and pertains to orders, which are likely outdated and no longer relevant.
+```
+
+In a separate message, I will send a training set of emails with their classifications for you to reference. Do you have any questions before I proceed?
+"""
     }
     
     user_message = {
@@ -177,6 +212,7 @@ def list_messages(service, page_token=None, max_results=100):
 def get_full_message(service, msg_id):
     message_data = {
         "id": msg_id,
+        "snippet": "",
         "headers": {},
         "body": "",
         "html_body": "",
@@ -186,41 +222,44 @@ def get_full_message(service, msg_id):
     try:
         # Fetch the full message using the Gmail API
         message = service.users().messages().get(userId="me", id=msg_id, format='full').execute()
-
-        # Extract headers from the message payload
-        headers = message['payload']['headers']
-        for header in headers:
-            message_data["headers"][header['name']] = header['value']
-
-        # Check if the message payload contains parts
-        if 'parts' in message['payload']:
-            for part in message['payload']['parts']:
-                if part['mimeType'] == 'text/plain':
-                    # Decode and store the plain text body of the email
-                    # Check if the part contains an attachment - if it does skip for now
-                    # TODO: consider weighing attachments for email sorting
-                    if "attachmentId" in part["body"]:
-                        message_data["attachments"].append(part["body"]["attachmentId"])
-                    # Double check that we're dealing with a "data" part
-                    assert "data" in part["body"]
-                    body = base64.urlsafe_b64decode(part['body']['data']).decode('utf-8')
-                    message_data["body"] += body
-                elif part['mimeType'] == 'text/html':
-                    # Decode and store the HTML body of the email
-                    if "attachmentId" in part["body"]:
-                        message_data["attachments"].append(part["body"]["attachmentId"])
-                    assert "data" in part["body"]
-                    html_body = base64.urlsafe_b64decode(part['body']['data']).decode('utf-8')
-                    message_data["html_body"] += html_body
-        else:
-            # If no parts are found, decode and store the body of the email directly
-            body = base64.urlsafe_b64decode(message['payload']['body']['data']).decode('utf-8')
-            message_data["body"] = body
-
     except HttpError as error:
         # Store the error in the dictionary if one occurs during the API call
         message_data["error"] = str(error)
+    
+    
+    message_data["snippet"] = message["snippet"]
 
+    # Extract headers from the message payload
+    headers = message['payload']['headers']
+    for header in headers:
+        message_data["headers"][header['name']] = header['value']
+
+    # Check if the message payload contains parts
+    if 'parts' in message['payload']:
+        for part in message['payload']['parts']:
+            # if part['mimeType'] == 'text/plain':
+            #     # Decode and store the plain text body of the email
+            #     # Double check that we're dealing with a "data" part
+            #     assert "data" in part["body"]
+            #     body = base64.urlsafe_b64decode(part['body']['data']).decode('utf-8')
+            #     message_data["body"] += body
+            # elif part['mimeType'] == 'text/html':
+            #     # Decode and store the HTML body of the email
+            #     assert "data" in part["body"]
+            #     html_body = base64.urlsafe_b64decode(part['body']['data']).decode('utf-8')
+            #     message_data["html_body"] += html_body
+            if "attachmentId" in part["body"]:
+                # Check if the part contains an attachment
+                # TODO: consider weighing attachments for email sorting
+                message_data["attachments"].append(part["body"]["attachmentId"])
+    else:
+        # If no parts are found, decode and store the body of the email directly
+        if "data" in message["payload"]["body"]:
+            body = base64.urlsafe_b64decode(message['payload']['body']['data']).decode('utf-8')
+            message_data["body"] = body
+        elif "attachmentId" in message["payload"]["body"]:
+            message_data["attachments"].append(message['payload']['body']['attachmentId'])
+    
     return message_data
 
 
@@ -253,6 +292,7 @@ def process_raw_email_message(raw_email):
         "to": "",
         "from": "", 
         "date": "",
+        "cc": "",
     }
     alternatives = {
         "to" : "delivered-to"
@@ -269,11 +309,23 @@ def process_raw_email_message(raw_email):
     
     processed_email = {}
     processed_email["id"] = raw_email["id"]
+    processed_email["snippet"] = raw_email["snippet"]
 
     print("\n===================================")
     print(f"ID: {processed_email['id']}")
     
     for key, value in headers.items():
+        # Account for emails with an empty subject header
+        if key == "subject" and not value:            
+            processed_email[key] = "(no subject)"
+            continue
+        # Catch edge case where there is no one on the "to" line
+        if key == "to" and not value:
+            processed_email[key] = "(TO line empty)"
+            continue
+        # Empty 'cc' line is normal/expected
+        if key == "cc" and not value:
+            continue
         assert value, f"Error in header: {raw_email['id']=}, {key=}, {value=}, {raw_email['headers'].keys()=}"
         processed_email[key] = raw_email['headers'][value]
         print(f"{key}: {processed_email[key]}")
@@ -281,8 +333,8 @@ def process_raw_email_message(raw_email):
 
     # Note: avoid this GPT error code by truncating the message body
     # Error code: 400 - {'error': {'message': "This model's maximum context length is 16385 tokens.
-    processed_email["body"] = raw_email["body"][:15000]
-    print(f"Message length: {len(raw_email['body'])}")
+    # processed_email["body"] = raw_email["body"][:15000]
+    # print(f"Message length: {len(raw_email['body'])}")
     
     processed_email["attachments"] = raw_email["attachments"]
     print(f"Attachments: {processed_email['attachments']}")
@@ -347,8 +399,9 @@ def classify_and_label(service, message):
     apply_label(service, message["id"], processed_label_id)
 
 
+EMAILS_DIR = "emails"
 def save_email_content(service, message):
-    filepath = f"emails/{message['id']}.json"
+    filepath = f"{EMAILS_DIR}/{message['id']}.json"
     if os.path.exists(filepath):
         # Email already saved
         return
@@ -364,7 +417,7 @@ if __name__ == "__main__":
 
     service = get_api_service_obj()
 
-    # Loop through the messages and classify
+    # Loop through the emails and save them locally
     
     page_token = load_page_token()
     emails_sorted = 0
@@ -380,11 +433,38 @@ if __name__ == "__main__":
         print(f"Currently sorting: {len(messages)} messages")
         if len(messages) < max_results:
             break
-                
-        # Create a pool of worker processes
-        with multiprocessing.Pool() as pool:
-            # Use starmap to pass multiple arguments to the function
-            results = pool.starmap(save_email_content, [(service, message) for message in messages])
-        break # TODO: REMOVE THIS WHEN DONE DEBUGGING
-    
+
+        if DEBUG:
+            for message in messages:
+                save_email_content(service, message)
+        else: # else process asynchronously
+            # Create a list of arguments to pass to save_email_content
+            params = [(service, message) for message in messages]
+            # Create a pool of worker processes to save emails asynchronously
+            with multiprocessing.Pool() as pool:
+                # Use starmap to pass multiple arguments to the function
+                results = pool.starmap(save_email_content, params)
     print(f"Successfully sorted {emails_sorted} emails")
+        
+    # Consolidate contacts into a dict
+    contacts = {} # "email" : email_count
+    for filename in os.listdir(EMAILS_DIR):
+        filepath = os.path.join(EMAILS_DIR, filename)
+
+        if not os.path.isfile(filepath):
+            continue
+        
+        with open(filepath, "r") as email_file:
+            data = json.load(email_file)
+            print(data)
+            headers = ["cc", "to", "from"]
+            for header in headers:
+                if header in data:
+                    contact_name = data[header]
+                    contacts[contact_name] = contacts.get(contact_name, 0) + 1
+    with open("contacts.json", "w") as contacts_file:
+        sorted_contacts = dict(sorted(contacts.items(), key=lambda item: item[1], reverse=True))
+        json.dump(sorted_contacts, contacts_file, indent=4)
+
+# TODO: update prompt, send new emails to gpt, save sorted email data to processed_emails folder, review
+# TODO: then run on all emails
