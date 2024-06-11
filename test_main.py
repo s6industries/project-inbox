@@ -238,9 +238,8 @@ def main_func_helper():
     
     # Currently all emails should be saved locally
     found_test_message = False
-    EMAILS_DIR = "emails"
-    for filename in os.listdir(EMAILS_DIR):
-        filepath = os.path.join(EMAILS_DIR, filename)
+    for filename in os.listdir(test_dir.name):
+        filepath = os.path.join(test_dir.name, filename)
 
         if not os.path.isfile(filepath):
             continue
